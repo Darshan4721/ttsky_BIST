@@ -158,7 +158,7 @@ module bist_controller_top (
         internal_bist_rst = 1; 
         lsfr_enable = 0; 
         alu_enable = 0; 
-        misr_enable = '{1'b0,1'b0};
+        misr_enable = 2'b00;
         
         case (state)
             reset: begin
@@ -167,11 +167,11 @@ module bist_controller_top (
             run: begin
                 lsfr_enable = 1; 
                 alu_enable = 1; 
-                misr_enable = '{1'b1,1'b1};
+                misr_enable = 2'b11;
             end
             lsfr_done_alu_wait: begin
                 alu_enable = 1;  
-                misr_enable = '{1'b1,1'b1};
+                misr_enable = 2'b11;
             end
         endcase
     end
