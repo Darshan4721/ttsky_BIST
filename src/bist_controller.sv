@@ -158,7 +158,7 @@ module bist_controller_top (
         internal_bist_rst = 1; 
         lsfr_enable = 0; 
         alu_enable = 0; 
-        misr_enable = '{0,0};
+        misr_enable = '{1'b0,1'b0};
         
         case (state)
             reset: begin
@@ -167,11 +167,11 @@ module bist_controller_top (
             run: begin
                 lsfr_enable = 1; 
                 alu_enable = 1; 
-                misr_enable = '{1,1};
+                misr_enable = '{1'b1,1'b1};
             end
             lsfr_done_alu_wait: begin
                 alu_enable = 1;  
-                misr_enable = '{1,1};
+                misr_enable = '{1'b1,1'b1};
             end
         endcase
     end
@@ -179,22 +179,22 @@ module bist_controller_top (
     // BLOCK 3: Status LEDs (Sequential to prevent flickering)
     always_ff @(posedge clk or negedge rst) begin
         if(!rst) begin
-            overall_result <= '{active: 0, running: 0, done: 0, pass: 0, failed: 0};
+            overall_result <= 5'b00000;
         end else if (enable) begin
             case (state)
-                idle: overall_result <= '{active: 0, running: 0, done: 0, pass: 0, failed: 0};
-                reset: overall_result <= '{active: 1, running: 0, done: 0, pass: 0, failed: 0};
-                run, lsfr_done_alu_wait: overall_result <= '{active: 1, running: 1, done: 0, pass: 0, failed: 0};
+                idle: overall_result <= 5'b00000;
+                reset: overall_result <= 5'b10000;
+                run, lsfr_done_alu_wait: overall_result <= 5'b11000;
                 compare: begin
                     if ((misr_one_data_out == GOLDEN_1) && (misr_two_data_out == GOLDEN_2))
-                        overall_result <= '{active: 1, running: 0, done: 1, pass: 1, failed: 0};
+                        overall_result <= 5'b10110;
                     else
-                        overall_result <= '{active: 1, running: 0, done: 1, pass: 0, failed: 1};
+                        overall_result <= 5'b10101;
                 end
             endcase
             // Clear LEDs if switch turned off in done state
             if (state == done && !bist_start) 
-                overall_result <= '{active: 0, running: 0, done: 0, pass: 0, failed: 0};
+                overall_result <= 5'b00000;
         end
     end
 
