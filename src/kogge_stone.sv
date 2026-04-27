@@ -1,44 +1,52 @@
-/*
- * Copyright (c) 2024 Your Name
- * SPDX-License-Identifier: Apache-2.0
- */
-
-`default_nettype none
-
-module tt_um_bist_controller (
-    input  wire [7:0] ui_in,    // Dedicated inputs
-    output wire [7:0] uo_out,   // Dedicated outputs
-    input  wire [7:0] uio_in,   // IOs: Input path
-    output wire [7:0] uio_out,  // IOs: Output path
-    output wire [7:0] uio_oe,   // IOs: Enable path (active high: 0=input, 1=output)
-    input  wire       ena,      // always 1 when the design is powered, so you can ignore it
-    input  wire       clk,      // clock
-    input  wire       rst_n     // reset_n - low to reset
+module kogge_stone_adder #(
+    parameter width = 8
+) (
+    input logic [width-1:0] a,b,
+    input logic cin,
+    output logic [width-1:0] sum,
+    output logic cout
 );
 
-  bist_status_t overall_result;
+    localparam final_stage = $clog2(width);
 
-  bist_controller_top bist_controller (
-      .clk(clk),
-      .rst(rst_n),
-      .enable(ui_in[0]),
-      .bist_start(ui_in[1]),
-      .overall_result(overall_result)
-  );
+    logic [width - 1:0] propagate [final_stage:0];
+    logic [width - 1:0] gen       [final_stage:0];
 
-  // Map the output
-  assign uo_out[0] = overall_result.active;
-  assign uo_out[1] = overall_result.running;
-  assign uo_out[2] = overall_result.done;
-  assign uo_out[3] = overall_result.pass;
-  assign uo_out[4] = overall_result.failed;
-  assign uo_out[7:5] = 3'b000;
+    // stage - 1 
 
-  // IO pins not used as output
-  assign uio_out = 0;
-  assign uio_oe  = 0;
+    assign propagate [0] = a ^ b;                                                  // for checking the propagate 
+    assign gen [0] [0] = (a[0] & b[0]) | (propagate [0] [0] & cin);               // to add cin 
+    assign gen [0] [width - 1 : 1]= a[width - 1 : 1] & b [width - 1 : 1];         // to check the generate 
 
-  // List all unused inputs to prevent warnings
-  wire _unused = &{ena, ui_in[7:2], uio_in, 1'b0};
+    // stage - 2
 
-endmodule
+    genvar current_stage,bit_position;
+
+    generate
+        for ( current_stage = 1 ; current_stage <= final_stage ; current_stage++ ) begin : stage_loop
+            localparam int jump = 1 << (current_stage -1);
+            for (bit_position = 0 ; bit_position < width ; bit_position++ ) begin : calculation_loop 
+                if (bit_position >= jump) begin       // safe condition for calculating gen and propagate
+                    assign gen [current_stage] [bit_position] = gen [current_stage - 1] [bit_position] | propagate [current_stage - 1] [bit_position] & gen [current_stage - 1] [bit_position - jump];
+                    assign propagate [current_stage] [bit_position] = propagate [current_stage - 1] [bit_position] & propagate [current_stage - 1] [bit_position - jump];
+                end 
+                else begin    // if the grouping hit 0 index
+                    assign gen [current_stage] [bit_position] = gen [current_stage - 1] [bit_position];
+                    assign propagate [current_stage] [bit_position] = propagate [current_stage - 1] [bit_position];
+                end
+            end
+            
+        end
+    endgenerate
+
+    // stage - 3
+
+    assign sum [0]             = propagate [0] [0] ^ cin;
+
+    assign sum [width - 1 : 1] = propagate [0] [width - 1:1] ^ gen [final_stage] [width - 2:0];
+
+    assign cout                = gen[final_stage] [width - 1];
+
+
+endmodule 
+
